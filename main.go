@@ -18,9 +18,9 @@ func main() {
 	fileServerWithHitTracker := hitTracker.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))
 	mux.Handle("/app/", fileServerWithHitTracker)
 
-	mux.HandleFunc("/healthz", readinessHandler)
-	mux.HandleFunc("/metrics", hitTracker.hitCountHandler)
-	mux.HandleFunc("/reset", hitTracker.hitResetHandler)
+	mux.HandleFunc("GET /api/healthz", readinessHandler)
+	mux.HandleFunc("GET /admin/metrics", hitTracker.hitCountHandler)
+	mux.HandleFunc("POST /admin/reset", hitTracker.hitResetHandler)
 
 	log.Fatal(server.ListenAndServe())
 }
@@ -36,9 +36,11 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
+// TODO: what is best practice? It seems the returned html should be pulled from a file instead of being sprinted in...
 func (cfg *apiConfig) hitCountHandler(w http.ResponseWriter, r *http.Request) {
 	hits := cfg.fileserverHits.Load()
-	w.Write([]byte(fmt.Sprintf("Hits: %v", hits)))
+	r.Header.Set("Content-Type", "text/html")
+	w.Write([]byte(fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", hits)))
 }
 
 func (cfg *apiConfig) hitResetHandler(w http.ResponseWriter, r *http.Request) {
