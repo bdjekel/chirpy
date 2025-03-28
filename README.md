@@ -1,2 +1,3 @@
 # chirpy
-playground project for learning HTTP Servers in Go
+HTTP Server for a twitter-style clone.
+Readme and Documentation in progress.
