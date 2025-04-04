@@ -59,40 +59,67 @@ func chirpValidator(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
 	}
+	
+	type validResponse struct {
+		Valid bool `json:"valid"`
+	}
 
-	type error struct {
+	type errorResponse struct {
 		Error string `json:"error"`
 	}
 
+	// Decode request
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
+	// Handle decoding error
 	if err != nil {
-		// How do I return the error correctly here? Should I return an error anywhere else? REad lesson and docs
-		w.WriteHeader(500) // confirm error code is correct
+
+		errResp := errorResponse{
+			Error: "Something went wrong",
+		}
+		res, err := json.Marshal(errResp)
+		if err != nil {
+			log.Printf("Something went wrong: %s", err)
+			w.WriteHeader(400)
+			return
+		}
+		// Set headers and write response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400) // Or appropriate status code
+		w.Write(res)
+		return
+	}
+	// Handle too long chrip
+	if len(params.Body) > 140 {
+		errResp := errorResponse{
+			Error: "Chirp is too long",
+		}
+		
+		res, err := json.Marshal(errResp)
+		if err != nil {
+			log.Printf("Something went wrong: %s", err)
+			w.WriteHeader(400)
+			return
+		}
+		// Set headers and write response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(400) // Or appropriate status code
+		w.Write(res)
+		return
 	}
 
-	// How do I return struct here properly? Review lesson, read docs
-}
+	validResp := validResponse{
+		Valid: true,
+	}
 
-func handler(w http.ResponseWriter, r *http.Request){
-    type parameters struct {
-        // these tags indicate how the keys in the JSON should be mapped to the struct fields
-        // the struct fields must be exported (start with a capital letter) if you want them parsed
-        Name string `json:"name"`
-        Age int `json:"age"`
-    }
-
-    decoder := json.NewDecoder(r.Body)
-    params := parameters{}
-    err := decoder.Decode(&params)
-    if err != nil {
-        // an error will be thrown if the JSON is invalid or has the wrong types
-        // any missing fields will simply have their values in the struct set to their zero value
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(500)
-		return
-    }
-    // params is a struct with data populated successfully
-    // ...
+	res, err := json.Marshal(validResp)
+	if err != nil {
+			log.Printf("Error marshalling JSON: %s", err)
+			w.WriteHeader(400)
+			return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(res)
 }
