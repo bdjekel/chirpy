@@ -40,8 +40,8 @@ type parameters struct {
 	Body string `json:"body"`
 }
 
-type validResponse struct {
-	Valid bool `json:"valid"`
+type ValidResponse struct {
+	CleanedBody string `json:"cleaned_body"`
 }
 
 type errorResponse struct {
@@ -96,9 +96,9 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle Profanity
-	cleaned_body := profaneWordHandler(params.Body)
+	res := ValidResponse{CleanedBody: profaneWordHandler(params.Body)}
 
-	respondWithJSON(w, 200, cleaned_body)
+	respondWithJSON(w, 200, res)
 }
 
 
