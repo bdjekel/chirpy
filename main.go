@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -20,16 +21,34 @@ func main() {
 	mux.Handle("/app/", fileServerWithHitTracker)
 
 	mux.HandleFunc("GET /api/healthz", readinessHandler)
-	mux.HandleFunc("POST /api/validate_chirp", chirpValidator)
+	mux.HandleFunc("POST /api/validate_chirp", validateChirp)
 	mux.HandleFunc("GET /admin/metrics", hitTracker.hitCountHandler)
 	mux.HandleFunc("POST /admin/reset", hitTracker.hitResetHandler)
 
 	log.Fatal(server.ListenAndServe())
 }
 
+
+
+// STRUCTS
+
 type apiConfig struct {
 	fileserverHits atomic.Int32
 }
+
+type parameters struct {
+	Body string `json:"body"`
+}
+
+type validResponse struct {
+	Valid bool `json:"valid"`
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+// FUNCTIONS
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,77 +68,90 @@ func (cfg *apiConfig) hitResetHandler(w http.ResponseWriter, r *http.Request) {
 	cfg.fileserverHits.Store(0)
 }
 
+
+// HANDLER FUNCTIONS
+
 func readinessHandler(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
 
-func chirpValidator(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
-	}
-	
-	type validResponse struct {
-		Valid bool `json:"valid"`
-	}
-
-	type errorResponse struct {
-		Error string `json:"error"`
-	}
+func validateChirp(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
-	// Handle decoding error
 	if err != nil {
-
-		errResp := errorResponse{
-			Error: "Something went wrong",
-		}
-		res, err := json.Marshal(errResp)
-		if err != nil {
-			log.Printf("Something went wrong: %s", err)
-			w.WriteHeader(400)
-			return
-		}
-		// Set headers and write response
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400) // Or appropriate status code
-		w.Write(res)
+		log.Printf("Something went wrong: %s", err)
+		w.WriteHeader(400)
 		return
 	}
+
 	// Handle too long chrip
 	if len(params.Body) > 140 {
-		errResp := errorResponse{
-			Error: "Chirp is too long",
-		}
-		
-		res, err := json.Marshal(errResp)
-		if err != nil {
-			log.Printf("Something went wrong: %s", err)
-			w.WriteHeader(400)
-			return
-		}
-		// Set headers and write response
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400) // Or appropriate status code
-		w.Write(res)
+		respondWithError(w, 400, "Max Chirp length exceeded.")
 		return
 	}
 
-	validResp := validResponse{
-		Valid: true,
+	// Handle Profanity
+	cleaned_body := profaneWordHandler(params.Body)
+
+	respondWithJSON(w, 200, cleaned_body)
+}
+
+
+// HELPER FUNCTIONS
+
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+
+	// Encode response
+	res, err := json.Marshal(errorResponse{Error: msg})
+	if err != nil {
+		log.Printf("Something went wrong: %s", err)
+		w.WriteHeader(400)
+		return
+	}
+	
+	// Set headers and write response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(res)
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+
+	// Encode response
+	res, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Something went wrong: %s", err)
+		return
 	}
 
-	res, err := json.Marshal(validResp)
-	if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			w.WriteHeader(400)
-			return
-	}
+	// Set headers and write response
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(code)
 	w.Write(res)
+}
+
+func profaneWordHandler(body string) string {
+	cleaned_words := ""
+	profanities := []string{	
+		"kerfuffle", 
+		"sharbert", 
+		"fornax"}
+	words := strings.Fields(body)
+
+	for _, word := range(words) {
+		for _, profanity := range(profanities) {
+			if strings.ToLower(word) == profanity {
+				word = "****"
+				break
+			}
+		}
+		cleaned_words += word + " "
+	}
+
+	return strings.TrimSpace(cleaned_words)
 }
