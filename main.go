@@ -1,18 +1,36 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync/atomic"
+
+	"github.com/bdjekel/chirpy/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func main() {
+	godotenv.Load()
+	dbURL := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatal("Connection to database could not be established")
+	}
+
+	dbQueries := database.New(db)
+
 
 	mux := http.NewServeMux()
-	hitTracker := apiConfig{}
+	hitTracker := apiConfig{
+		DB: *dbQueries,
+	}
 	server := &http.Server{
 		Handler: mux,
 		Addr:    ":8080"}
@@ -34,6 +52,7 @@ func main() {
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	DB database.Queries
 }
 
 type parameters struct {
