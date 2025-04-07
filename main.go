@@ -9,8 +9,10 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/bdjekel/chirpy/internal/database"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -28,20 +30,24 @@ func main() {
 
 
 	mux := http.NewServeMux()
-	hitTracker := apiConfig{
+
+	admin := apiConfig{
 		DB: *dbQueries,
+		Platform: os.Getenv("PLATFORM"),
 	}
+
 	server := &http.Server{
 		Handler: mux,
 		Addr:    ":8080"}
 
-	fileServerWithHitTracker := hitTracker.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))
+	fileServerWithHitTracker := admin.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))
 	mux.Handle("/app/", fileServerWithHitTracker)
 
 	mux.HandleFunc("GET /api/healthz", readinessHandler)
 	mux.HandleFunc("POST /api/validate_chirp", validateChirp)
-	mux.HandleFunc("GET /admin/metrics", hitTracker.hitCountHandler)
-	mux.HandleFunc("POST /admin/reset", hitTracker.hitResetHandler)
+	mux.HandleFunc("POST /api/users", admin.createUserHandler)
+	mux.HandleFunc("GET /admin/metrics", admin.hitCountHandler)
+	mux.HandleFunc("POST /admin/reset", admin.dbResetHandler)
 
 	log.Fatal(server.ListenAndServe())
 }
@@ -53,9 +59,10 @@ func main() {
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	DB database.Queries
+	Platform string
 }
 
-type parameters struct {
+type chirpParameters struct {
 	Body string `json:"body"`
 }
 
@@ -65,6 +72,17 @@ type ValidResponse struct {
 
 type errorResponse struct {
 	Error string `json:"error"`
+}
+
+type UserRequest struct {
+	Email string `json:"email"`
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
 }
 
 // FUNCTIONS
@@ -83,12 +101,44 @@ func (cfg *apiConfig) hitCountHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", hits)))
 }
 
-func (cfg *apiConfig) hitResetHandler(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) dbResetHandler(w http.ResponseWriter, r *http.Request) {
+	if cfg.Platform != os.Getenv("PLATFORM") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(403)
+		w.Write([]byte("Forbidden"))
+		return
+	}
 	cfg.fileserverHits.Store(0)
+	cfg.DB.DeleteAllUsers(r.Context())
 }
 
 
-// HANDLER FUNCTIONS
+func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	params := UserRequest{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Something went wrong: %s", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	user, err := cfg.DB.CreateUser(r.Context(), params.Email)
+	if err != nil {
+		log.Printf("Something went wrong: %s", err)
+		w.WriteHeader(400)
+		return
+	}
+
+	responseUser := User{
+		ID: user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email: user.Email,
+	}
+
+	respondWithJSON(w, 201, responseUser)
+}
 
 func readinessHandler(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set("Content-Type", "text/plain; charset=utf-8")
@@ -100,7 +150,7 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 
 	// Decode request
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := chirpParameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Something went wrong: %s", err)
