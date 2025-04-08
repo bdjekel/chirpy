@@ -1,11 +1,13 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/bdjekel/chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -14,17 +16,14 @@ type Chirp struct {
 	CreatedAt 	time.Time 	`json:"created_at"`
 	UpdatedAt 	time.Time 	`json:"updated_at"`
 	Body		string		`json:"body"`
+	UserID		string		`json:"user_id"`
 }
 
 func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	// Request struct
 	type parameters struct {
 		Body string `json:"body"`
-	}
-
-	// Response struct
-	type response struct {
-		Chirp string `json:"cleaned_body`
+		ID string `json:"user_id"`
 	}
 
 	// Decode request
@@ -44,9 +43,20 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle Profanity
-	chirp := profaneWordHandler(params.Body)
+	chirpText := profaneWordHandler(params.Body)
 
-	respondWithJSON(w, http.StatusOK, response{Chirp: chirp})
+	// Add chirp to database
+	chirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body: chirpText,
+		UserID: sql.NullString{String: params.ID, Valid: params.ID != ""},
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating chirp: %s", err)
+		return
+	}
+
+	//Respond with JSON
+	respondWithJSON(w, http.StatusOK, chirp)
 }
 
 func profaneWordHandler(body string) string {
