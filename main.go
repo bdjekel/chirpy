@@ -1,66 +1,88 @@
 package main
 
+//TODO: Clean up main() by moving certain functions into their own files.
+
 import (
 	"database/sql"
-	"encoding/json"
-	"fmt"
+	"encoding/json" // move
+	"fmt"           // needed?
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync/atomic"
-	"time"
+	"time" // move
 
 	"github.com/bdjekel/chirpy/internal/database"
-	"github.com/google/uuid"
+	"github.com/google/uuid" // move
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
-func main() {
-	godotenv.Load()
-	dbURL := os.Getenv("DB_URL")
+type apiConfig struct {
+	fileserverHits atomic.Int32
+	DB database.Queries
+	platform string
+}
 
-	db, err := sql.Open("postgres", dbURL)
-	if err != nil {
-		log.Fatal("Connection to database could not be established")
+func main() {
+	const filepathRoot = "."
+	const port = "8080"
+
+	// Retrieve env variables
+	godotenv.Load()
+	
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL must be set")
 	}
 
-	dbQueries := database.New(db)
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM must be set")
+	}
 
+	// Connect to database
+	dbConnection, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Connection to database could not be established: %s", err)
+	}
+
+	dbQueries := database.New(dbConnection)
+
+
+	apiCfg := apiConfig{
+		fileserverHits: atomic.Int32{},
+		DB: *dbQueries,
+		platform: platform,
+	}
 
 	mux := http.NewServeMux()
 
-	admin := apiConfig{
-		DB: *dbQueries,
-		Platform: os.Getenv("PLATFORM"),
-	}
-
-	server := &http.Server{
-		Handler: mux,
-		Addr:    ":8080"}
-
-	fileServerWithHitTracker := admin.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("."))))
+	// Middleware
+	fileServerWithHitTracker := apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot))))
 	mux.Handle("/app/", fileServerWithHitTracker)
 
-	mux.HandleFunc("GET /api/healthz", readinessHandler)
-	mux.HandleFunc("POST /api/validate_chirp", validateChirp)
-	mux.HandleFunc("POST /api/users", admin.createUserHandler)
-	mux.HandleFunc("GET /admin/metrics", admin.hitCountHandler)
-	mux.HandleFunc("POST /admin/reset", admin.dbResetHandler)
+	// api endpoints
+	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirps)
+	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	
+	// Admin endpoints
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	log.Printf("Serving on port: %s\n", port)
 	log.Fatal(server.ListenAndServe())
 }
 
 
 
 // STRUCTS
-
-type apiConfig struct {
-	fileserverHits atomic.Int32
-	DB database.Queries
-	Platform string
-}
 
 type chirpParameters struct {
 	Body string `json:"body"`
@@ -95,14 +117,15 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 // TODO: what is best practice? It seems the returned html should be pulled from a file instead of being sprinted in...
-func (cfg *apiConfig) hitCountHandler(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
+	// api endpoints
 	hits := cfg.fileserverHits.Load()
 	r.Header.Set("Content-Type", "text/html")
 	w.Write([]byte(fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", hits)))
 }
 
-func (cfg *apiConfig) dbResetHandler(w http.ResponseWriter, r *http.Request) {
-	if cfg.Platform != os.Getenv("PLATFORM") {
+func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != os.Getenv("PLATFORM") {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(403)
 		w.Write([]byte("Forbidden"))
@@ -113,7 +136,7 @@ func (cfg *apiConfig) dbResetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 
-func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := UserRequest{}
 	err := decoder.Decode(&params)
@@ -140,87 +163,44 @@ func (cfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) 
 	respondWithJSON(w, 201, responseUser)
 }
 
-func readinessHandler(w http.ResponseWriter, r *http.Request) {
+func handlerReadiness(w http.ResponseWriter, r *http.Request) {
 	r.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
 
-func validateChirp(w http.ResponseWriter, r *http.Request) {
 
-	// Decode request
-	decoder := json.NewDecoder(r.Body)
-	params := chirpParameters{}
-	err := decoder.Decode(&params)
-	if err != nil {
-		log.Printf("Something went wrong: %s", err)
-		w.WriteHeader(400)
-		return
-	}
+//TODO: Move respondWithError and respond withJSON to their own file.
 
-	// Handle too long chrip
-	if len(params.Body) > 140 {
-		respondWithError(w, 400, "Max Chirp length exceeded.")
-		return
-	}
-
-	// Handle Profanity
-	res := ValidResponse{CleanedBody: profaneWordHandler(params.Body)}
-
-	respondWithJSON(w, 200, res)
-}
-
-
-// HELPER FUNCTIONS
-
-func respondWithError(w http.ResponseWriter, code int, msg string) {
+func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
 
 	// Encode response
-	res, err := json.Marshal(errorResponse{Error: msg})
 	if err != nil {
-		log.Printf("Something went wrong: %s", err)
-		w.WriteHeader(400)
-		return
+		log.Println(err)
 	}
-	
-	// Set headers and write response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	w.Write(res)
+
+	if code > 499 {
+		log.Printf("Responding with 500-level error: %s", msg)
+	}
+
+	type errorResponse struct {
+		Error string `json:"error"`
+	}
+
+	respondWithJSON(w, code, errorResponse{ Error: msg})
 }
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
 
 	// Encode response
 	res, err := json.Marshal(payload)
 	if err != nil {
-		log.Printf("Something went wrong: %s", err)
+		log.Printf("Error marshalling JSON: %s", err)
+		w.WriteHeader(500)
 		return
 	}
 
-	// Set headers and write response
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(res)
-}
-
-func profaneWordHandler(body string) string {
-	cleaned_words := ""
-	profanities := []string{	
-		"kerfuffle", 
-		"sharbert", 
-		"fornax"}
-	words := strings.Fields(body)
-
-	for _, word := range(words) {
-		for _, profanity := range(profanities) {
-			if strings.ToLower(word) == profanity {
-				word = "****"
-				break
-			}
-		}
-		cleaned_words += word + " "
-	}
-
-	return strings.TrimSpace(cleaned_words)
 }
