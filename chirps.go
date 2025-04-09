@@ -1,8 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -16,24 +16,24 @@ type Chirp struct {
 	CreatedAt 	time.Time 	`json:"created_at"`
 	UpdatedAt 	time.Time 	`json:"updated_at"`
 	Body		string		`json:"body"`
-	UserID		string		`json:"user_id"`
+	UserID		uuid.UUID	`json:"user_id"`
 }
 
 func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
-	// Request struct
-	type parameters struct {
-		Body string `json:"body"`
-		ID string `json:"user_id"`
-	}
 
 	// Decode request
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := database.CreateChirpParams{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
+
+	log.Println("---UserID---")
+	log.Println(params.UserID)
+	log.Println("---Body---")
+	log.Println(params.Body)
 
 	// Handle too long chrip
 	const maxChirpLength = 140
@@ -43,20 +43,18 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle Profanity
-	chirpText := profaneWordHandler(params.Body)
-
+	params.Body = profaneWordHandler(params.Body)
+	log.Println("---Updated Body---")
+	log.Println(params.Body)
 	// Add chirp to database
-	chirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
-		Body: chirpText,
-		UserID: sql.NullString{String: params.ID, Valid: params.ID != ""},
-	})
+	chirp, err := cfg.DB.CreateChirp(r.Context(), params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating chirp: %s", err)
 		return
 	}
 
 	//Respond with JSON
-	respondWithJSON(w, http.StatusOK, chirp)
+	respondWithJSON(w, http.StatusCreated, chirp)
 }
 
 func profaneWordHandler(body string) string {

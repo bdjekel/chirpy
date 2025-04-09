@@ -7,7 +7,8 @@ package database
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/google/uuid"
 )
 
 const createChirp = `-- name: CreateChirp :one
@@ -23,8 +24,8 @@ RETURNING id, created_at, updated_at, body, user_id
 `
 
 type CreateChirpParams struct {
-	Body   string
-	UserID sql.NullString
+	Body   string    `json:"body"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp, error) {

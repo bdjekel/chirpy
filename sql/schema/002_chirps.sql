@@ -4,7 +4,7 @@ CREATE TABLE chirps (
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     body TEXT NOT NULL,
-    user_id TEXT,
+    user_id UUID NOT NULL,
     CONSTRAINT fk_users
     FOREIGN KEY (user_id)
     REFERENCES users(id) ON DELETE CASCADE
