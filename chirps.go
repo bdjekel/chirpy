@@ -49,12 +49,38 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	// Add chirp to database
 	chirp, err := cfg.DB.CreateChirp(r.Context(), params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error creating chirp: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
 		return
 	}
 
 	//Respond with JSON
 	respondWithJSON(w, http.StatusCreated, chirp)
+}
+
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.DB.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error retrieving chirps", err)
+	}
+
+	respondWithJSON(w, http.StatusOK, chirps)
+}
+
+func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request) {
+	
+	chirpID, err := uuid.Parse(r.PathValue("id"))
+    if err != nil {
+        http.Error(w, "Invalid chirp ID", http.StatusBadRequest)
+        return
+    }
+
+	chirp, err := cfg.DB.GetChirpByID(r.Context(), chirpID)
+		if err != nil {
+			respondWithError(w, http.StatusNotFound, "Chirp does not exist.", err)
+			return
+		}
+
+	respondWithJSON(w, http.StatusOK, chirp)
 }
 
 func profaneWordHandler(body string) string {

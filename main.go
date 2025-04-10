@@ -12,6 +12,7 @@ import (
 
 	// move
 	"github.com/bdjekel/chirpy/internal/database" // move
+	// move
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -62,7 +63,10 @@ func main() {
 
 	// api endpoints
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
+	mux.HandleFunc("GET /api/chirps/{id}", apiCfg.handlerGetChirpByID)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirps)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 	
 	// Admin endpoints
