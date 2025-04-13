@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -49,5 +50,6 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 
 
 func GetBearerToken(headers http.Header) (string, error) {
-
+	authHeader := headers.Get("Authorization")
+	fmt.Printf("authHeader ==> %s", authHeader)
 }
