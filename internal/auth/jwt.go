@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -31,8 +30,6 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 		&claims, 
 		keyFunc)
 	if err != nil {
-		log.Println("TOKEN NOT PARSED CORRECTLY")
-		log.Print(token)
 		return uuid.Nil, err
 	}
 

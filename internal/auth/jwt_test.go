@@ -60,11 +60,11 @@ func TestValidateExpiredJWT(t *testing.T) {
 	userID := uuid.New()
 	secretToken := "ThIsIsAsEcReTtOkEn9876"		
 	expiresIn := time.Duration(rand.Intn(750)) * time.Millisecond 
-	fmt.Println("-------------INPUT---------------")
-	fmt.Printf("userID ==> %s\n", userID)
-	fmt.Printf("secretToken ==> %s\n", secretToken)
-	fmt.Printf("expiresIn ==> %s\n", expiresIn)
-	fmt.Println("---------------------------------")
+	// fmt.Println("-------------INPUT---------------")
+	// fmt.Printf("userID ==> %s\n", userID)
+	// fmt.Printf("secretToken ==> %s\n", secretToken)
+	// fmt.Printf("expiresIn ==> %s\n", expiresIn)
+	// fmt.Println("---------------------------------")
 	
 	//make jwt
 	jwt, err := MakeJWT(userID, secretToken, expiresIn)
@@ -73,21 +73,111 @@ func TestValidateExpiredJWT(t *testing.T) {
 		return
 	}
 
-	fmt.Println("---------------------------------")
-	fmt.Printf("JWT ==> %s\n", jwt)
-	fmt.Println("---------------------------------")
 
 
 	// let jwt expire
 	time.Sleep(time.Second)
 
 	// attempt to validate
+	expectedErrMsg := "token has invalid claims: token is expired"
 	validatedUserID, err := ValidateJWT(jwt, secretToken)
-	fmt.Println("---------------------------------")
-	fmt.Printf("validatedUserID ==> %s\n", validatedUserID)
-	fmt.Println("---------------------------------")
-
-	if validatedUserID != userID || err != nil {
-		t.Errorf("testing testing: %s\n", err)
+	if err != nil {
+		errMsg := fmt.Sprint(err)
+		// fmt.Println("------------------")
+		// fmt.Printf(">>%s<<", errMsg)
+		// fmt.Println()
+		// fmt.Printf(">>%s<<", expectedErrMsg)
+		// fmt.Println("------------------")
+		if errMsg == expectedErrMsg {
+			fmt.Println("expired token test passed")
+			return
+		}
+		t.Error(err)
 	}
+	fmt.Printf("FAIL. Test did not invalidate JWT. See valid token:\n%s", validatedUserID)
+}
+
+func TestValidateWrongSecretJWT(t *testing.T) {
+	// parameters for jwt
+	userID := uuid.New()
+	secretToken := "ThIsIsAsEcReTtOkEn9876"		
+	expiresIn := time.Duration(rand.Intn(750)) * time.Millisecond 
+	// fmt.Println("-------------INPUT---------------")
+	// fmt.Printf("userID ==> %s\n", userID)
+	// fmt.Printf("secretToken ==> %s\n", secretToken)
+	// fmt.Printf("expiresIn ==> %s\n", expiresIn)
+	// fmt.Println("---------------------------------")
+	
+	//make jwt
+	jwt, err := MakeJWT(userID, secretToken, expiresIn)
+	if err != nil {
+		t.Errorf("Error creating jwt: %s\n", err)
+		return
+	}
+
+	// attempt to validate
+	wrongSecretToken := "incorrectamundo"
+	expectedErrMsg := "token signature is invalid: signature is invalid"
+	_, err = ValidateJWT(jwt, wrongSecretToken)
+	if err != nil {
+		errMsg := fmt.Sprint(err)
+		// fmt.Println("------------------")
+		// fmt.Printf(">>%s<<", errMsg)
+		// fmt.Println()
+		// fmt.Printf(">>%s<<", expectedErrMsg)
+		// fmt.Println("------------------")
+		if errMsg == expectedErrMsg {
+			fmt.Println("incorrect secret token test passed")
+			return
+		}
+		t.Error(err)
+	}
+	fmt.Printf("FAIL. Test did not invalidate JWT. See valid secret token:\n%s", secretToken)
+}
+
+func TestValidateCorruptedJWT(t *testing.T) {
+	// parameters for jwt
+	userID := uuid.New()
+	secretToken := "ThIsIsAsEcReTtOkEn9876"		
+	expiresIn := time.Duration(rand.Intn(7500)) * time.Millisecond + (10 * time.Second)
+	// fmt.Println("-------------INPUT---------------")
+	// fmt.Printf("userID ==> %s\n", userID)
+	// fmt.Printf("secretToken ==> %s\n", secretToken)
+	// fmt.Printf("expiresIn ==> %s\n", expiresIn)
+	// fmt.Println("---------------------------------")
+	
+	//make jwt
+	jwt, err := MakeJWT(userID, secretToken, expiresIn)
+	if err != nil {
+		t.Errorf("Error creating jwt: %s\n", err)
+		return
+	}
+
+	// make wrong jwt
+	wrongUserID := uuid.New()
+	wrongSecretToken := "incorrectamundo"
+	wrongJwt, err := MakeJWT(wrongUserID, wrongSecretToken, expiresIn)
+	if err != nil {
+		t.Errorf("Error creating jwt: %s\n", err)
+		return
+	}
+
+	// attempt to validate
+	expectedErrMsg := "token signature is invalid: signature is invalid"
+	_, err = ValidateJWT(wrongJwt, secretToken)
+	if err != nil {
+		errMsg := fmt.Sprint(err)
+		fmt.Println("------------------")
+		fmt.Printf(">>%s<<", errMsg)
+		fmt.Println()
+		fmt.Printf(">>%s<<", expectedErrMsg)
+		fmt.Println("------------------")
+		if errMsg == expectedErrMsg {
+			fmt.Println("incorrect jwt test passed")
+			return
+		}
+		t.Error(err)
+	}
+	fmt.Printf("FAIL. Test did not invalidate JWT. See valid jwt:\n%s", jwt)
+	fmt.Printf("\nand invalid jwt:\n%s", wrongJwt)
 }
