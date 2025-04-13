@@ -181,3 +181,12 @@ func TestValidateCorruptedJWT(t *testing.T) {
 	fmt.Printf("FAIL. Test did not invalidate JWT. See valid jwt:\n%s", jwt)
 	fmt.Printf("\nand invalid jwt:\n%s", wrongJwt)
 }
+
+
+func TestGetBearerToken(t *testing.T) {
+	//create jwt
+
+	//create request with jwt as auth header
+
+	//call GetBearerToken on request
+}
