@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"testing"
 	"time"
 
@@ -183,10 +184,38 @@ func TestValidateCorruptedJWT(t *testing.T) {
 }
 
 
-func TestGetBearerToken(t *testing.T) {
-	//create jwt
+func TestGetBearerTokenValid(t *testing.T) {
+	// define test headers
+	headers := http.Header{
+		"Content-Type":  []string{"application/json"},
+		"Authorization": []string{"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"},
+	}
 
-	//create request with jwt as auth header
+	//call GetBearerToken on said headers
+	bearerToken, err := GetBearerToken(headers)
+	if err != nil {
+		t.Errorf("Bearer token text failed: %s", err)
+	}
+	fmt.Println("test passed. See bearerToken below:")
+	fmt.Println(bearerToken)
+}
 
-	//call GetBearerToken on request
+func TestGetBearerTokenNoBearerPrefix(t *testing.T) {
+	// define test headers
+	headers := http.Header{
+		"Content-Type":  []string{"application/json"},
+		"Authorization": []string{"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"},
+	}
+
+	//call GetBearerToken on said headers
+	bearerToken, err := GetBearerToken(headers)
+	if err != nil {
+		errString := fmt.Sprint(err)
+		if errString == "authorization header missing Bearer prefix" {
+			fmt.Println("missing bearer prefix test passed.")
+			return
+		}
+		t.Error("incorrect error message")
+	}
+	t.Errorf("error not thrown. should be missing bearer prefix. See bearerToken below:\n>>%s<<\n", bearerToken)
 }

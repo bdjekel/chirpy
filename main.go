@@ -1,18 +1,13 @@
 package main
 
-//TODO: Clean up main() by moving certain functions into their own files.
-
 import (
-	"database/sql" // move
-	// needed?
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
 
-	// move
-	"github.com/bdjekel/chirpy/internal/database" // move
-	// move
+	"github.com/bdjekel/chirpy/internal/database"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -21,6 +16,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	DB database.Queries
 	platform string
+	secret string
 }
 
 func main() {
@@ -53,6 +49,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		DB: *dbQueries,
 		platform: platform,
+		secret: os.Getenv("API_KEY"),
 	}
 
 	mux := http.NewServeMux()
@@ -73,6 +70,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
+	// Start server
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: mux,

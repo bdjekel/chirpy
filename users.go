@@ -10,17 +10,17 @@ import (
 	"github.com/google/uuid"
 )
 
-type SafeUser struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email string `json:"email"`
 		Password string `json:"password"`
+	}
+
+	type UserCreatedResponse struct {
+		ID 			uuid.UUID	`json:"id"` 
+		CreatedAt 	time.Time	`json:"created_at"`
+		UpdatedAt 	time.Time	`json:"updated_at"`
+		Email     	string 		`json:"email"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -48,14 +48,10 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 
-	respondWithJSON(w, 201, sanitizeUser(user))
-}
-
-func sanitizeUser(u database.User) SafeUser {
-	return SafeUser{
-		ID:        u.ID,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-		Email:     u.Email,
-	}
+	respondWithJSON(w, 201, UserCreatedResponse{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
 }

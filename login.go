@@ -3,15 +3,28 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/bdjekel/chirpy/internal/auth"
+	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password 	string `json:"password"`
 		Email 		string `json:"email"`
+		ExpiresInSeconds int `json:"expires_in_seconds"`
 	}
+
+	type LoginResponse struct {
+		ID 			uuid.UUID	`json:"id"` 
+		CreatedAt 	time.Time	`json:"created_at"`
+		UpdatedAt 	time.Time	`json:"updated_at"`
+		Email     	string 		`json:"email"`
+		Token		string		`json:"token"`
+	}
+
 	// Decode request
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
@@ -26,10 +39,28 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Email is not associated with an account.", err)
 		return
 	}
-
 	if err := auth.CheckPasswordHash(user.HashedPassword, params.Password); err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect Password.", err)
 	}
 
-	respondWithJSON(w, http.StatusOK, sanitizeUser(user))
+	var expiresIn time.Duration
+	switch {
+	case params.ExpiresInSeconds < 3600:
+		expiresIn = time.Duration(params.ExpiresInSeconds) * time.Second
+	default:
+		expiresIn = time.Duration(3600) * time.Second
+	}
+
+	token, err := auth.MakeJWT(user.ID, os.Getenv("SECRET"), expiresIn)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error creating auth token.", err)
+	}
+
+	respondWithJSON(w, http.StatusOK, LoginResponse{
+		ID:        	user.ID,
+		CreatedAt: 	user.CreatedAt,
+		UpdatedAt: 	user.UpdatedAt,
+		Email:     	user.Email,
+		Token:		token,
+	})
 }
