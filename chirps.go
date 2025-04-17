@@ -20,20 +20,23 @@ type Chirp struct {
 }
 
 func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
+		Token string `json:"token"`
+	}
 
 	// Decode request
 	decoder := json.NewDecoder(r.Body)
-	params := database.CreateChirpParams{}
+	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
 
-	log.Println("---UserID---")
-	log.Println(params.UserID)
-	log.Println("---Body---")
-	log.Println(params.Body)
+	// ValidateJWT
+	
 
 	// Handle too long chrip
 	const maxChirpLength = 140
@@ -47,7 +50,10 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	log.Println("---Updated Body---")
 	log.Println(params.Body)
 	// Add chirp to database
-	chirp, err := cfg.DB.CreateChirp(r.Context(), params)
+	chirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body: params.Body,
+		UserID: params.userID,
+	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
 		return
