@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/bdjekel/chirpy/internal/auth"
 	"github.com/bdjekel/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -22,8 +24,6 @@ type Chirp struct {
 func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
-		Token string `json:"token"`
 	}
 
 	// Decode request
@@ -36,7 +36,17 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ValidateJWT
-	
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error retreiving auth token.", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, os.Getenv("SECRET"))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error validating auth token.", err)
+		return
+	}
 
 	// Handle too long chrip
 	const maxChirpLength = 140
@@ -52,7 +62,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	// Add chirp to database
 	chirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body: params.Body,
-		UserID: params.userID,
+		UserID: userID,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
