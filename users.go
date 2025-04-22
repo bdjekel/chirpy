@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -42,8 +43,9 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		HashedPassword: hashedPassword,
 		Email: params.Email, 
 	})
-
+	fmt.Printf(">>%s<<", err)	
 	if err != nil {
+		// fmt.Printf(">>%s<<", user)
 		respondWithError(w, http.StatusInternalServerError, "Error creating user", err)
 		return
 	}
