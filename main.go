@@ -49,7 +49,7 @@ func main() {
 		fileserverHits: atomic.Int32{},
 		DB: *dbQueries,
 		platform: platform,
-		secret: os.Getenv("API_KEY"),
+		secret: os.Getenv("SECRET"),
 	}
 
 	mux := http.NewServeMux()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -45,12 +46,14 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 
 	var expiresIn time.Duration
 	switch {
-	case params.ExpiresInSeconds < 3600:
+	case params.ExpiresInSeconds < 3600 && params.ExpiresInSeconds > 0:
 		expiresIn = time.Duration(params.ExpiresInSeconds) * time.Second
 	default:
 		expiresIn = time.Duration(3600) * time.Second
 	}
 
+	fmt.Printf("\nToken about to be made. Expires in %s seconds.\n", expiresIn)
+	
 	token, err := auth.MakeJWT(user.ID, os.Getenv("SECRET"), expiresIn)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Error creating auth token.", err)
