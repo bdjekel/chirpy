@@ -79,6 +79,10 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 
+	type RefreshResponse struct {
+		Token string `json:"token"`
+	}
+
 	// ValidateJWT
 	refresh_token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
@@ -88,9 +92,22 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 	
 	refresh_token_data, err := cfg.DB.GetRefreshToken(r.Context(), refresh_token)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Refresh token is expired or does not exist.", err)
+		respondWithError(w, http.StatusUnauthorized, "Refresh token does not exist.", err)
+		return
+	}
+
+	if refresh_token_data.RevokedAt.Valid || refresh_token_data.ExpiresAt.Before(time.Now())  {
+		respondWithError(w, http.StatusUnauthorized, "Refresh token is expired or has been revoked.", err)
+	}
+
+	expiresIn := 3600 * time.Second
+	
+	access_token, err := auth.MakeJWT(refresh_token_data.UserID, os.Getenv("SECRET"), expiresIn)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error creating access_token.", err)
+		return
 	}
 	
-	respondWithJSON(w, http.StatusOK, refresh_token_data.Token)
+	respondWithJSON(w, http.StatusOK, RefreshResponse{ Token: access_token })
 
 }

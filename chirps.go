@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -57,8 +56,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 
 	// Handle Profanity
 	params.Body = profaneWordHandler(params.Body)
-	log.Println("---Updated Body---")
-	log.Println(params.Body)
+
 	// Add chirp to database
 	chirp, err := cfg.DB.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body: params.Body,
