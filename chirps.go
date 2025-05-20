@@ -36,15 +36,15 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ValidateJWT
-	token, err := auth.GetBearerToken(r.Header)
+	access_token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error retreiving auth token.", err)
+		respondWithError(w, http.StatusInternalServerError, "Error retreiving access_token.", err)
 		return
 	}
 
-	userID, err := auth.ValidateJWT(token, os.Getenv("SECRET"))
+	userID, err := auth.ValidateJWT(access_token, os.Getenv("SECRET"))
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error validating auth token.", err)
+		respondWithError(w, http.StatusInternalServerError, "Error validating access_token.", err)
 		return
 	}
 

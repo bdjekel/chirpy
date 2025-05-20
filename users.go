@@ -37,7 +37,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		respondWithError(w, http.StatusInternalServerError, "Error hashing password", err)
 		return
 	}
-//TODO: Throwing error here. Started throwing after GetBearerToken added. Possibly related...
+
 	user, err := cfg.DB.CreateUser(r.Context(), database.CreateUserParams{
 		HashedPassword: hashedPassword,
 		Email: params.Email, 

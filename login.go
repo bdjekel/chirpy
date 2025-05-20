@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/bdjekel/chirpy/internal/auth"
+	"github.com/bdjekel/chirpy/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -15,18 +15,18 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password 	string `json:"password"`
 		Email 		string `json:"email"`
-		ExpiresInSeconds int `json:"expires_in_seconds"`
 	}
 
 	type LoginResponse struct {
-		ID 			uuid.UUID	`json:"id"` 
-		CreatedAt 	time.Time	`json:"created_at"`
-		UpdatedAt 	time.Time	`json:"updated_at"`
-		Email     	string 		`json:"email"`
-		Token		string		`json:"token"`
+		ID 				uuid.UUID	`json:"id"` 
+		CreatedAt 		time.Time	`json:"created_at"`
+		UpdatedAt 		time.Time	`json:"updated_at"`
+		Email     		string 		`json:"email"`
+		Token			string		`json:"token"`
+		RefreshToken 	string		`json:"refresh_token"`
 	}
 
-	// Decode request
+// Decode request
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
@@ -44,19 +44,27 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect Password.", err)
 	}
 
-	var expiresIn time.Duration
-	switch {
-	case params.ExpiresInSeconds < 3600 && params.ExpiresInSeconds > 0:
-		expiresIn = time.Duration(params.ExpiresInSeconds) * time.Second
-	default:
-		expiresIn = time.Duration(3600) * time.Second
+	expiresIn := 3600 * time.Second
+	
+	access_token, err := auth.MakeJWT(user.ID, os.Getenv("SECRET"), expiresIn)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error creating access_token.", err)
 	}
 
-	fmt.Printf("\nToken about to be made. Expires in %s seconds.\n", expiresIn)
-	
-	token, err := auth.MakeJWT(user.ID, os.Getenv("SECRET"), expiresIn)
+
+	refresh_token_string, err := auth.MakeRefreshToken()
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "Error creating auth token.", err)
+		respondWithError(w, http.StatusInternalServerError, "Error creating refresh_token_string", err)
+		return
+	}
+
+	refresh_token, err := cfg.DB.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token: refresh_token_string,
+		UserID: user.ID,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating refresh_token", err)
+		return
 	}
 
 	respondWithJSON(w, http.StatusOK, LoginResponse{
@@ -64,6 +72,25 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: 	user.CreatedAt,
 		UpdatedAt: 	user.UpdatedAt,
 		Email:     	user.Email,
-		Token:		token,
+		Token:		access_token,
+		RefreshToken: refresh_token.Token,
 	})
+}
+
+func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
+
+	// ValidateJWT
+	refresh_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error retreiving refresh_token.", err)
+		return
+	}
+	
+	refresh_token_data, err := cfg.DB.GetRefreshToken(r.Context(), refresh_token)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Refresh token is expired or does not exist.", err)
+	}
+	
+	respondWithJSON(w, http.StatusOK, refresh_token_data.Token)
+
 }

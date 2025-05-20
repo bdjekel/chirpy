@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -58,4 +60,14 @@ func GetBearerToken(headers http.Header) (string, error) {
 	}
 	bearerToken := strings.TrimPrefix(authHeader, prefix)
 	return bearerToken, nil
+}
+
+
+
+func MakeRefreshToken() (string, error) {
+	token := make([]byte, 32)
+	rand.Read(token)
+	encodedToken := hex.EncodeToString(token)
+	// neither rand.Read nor hex.EncodeToString return an error, but Lane's function signature in the tutorial had (string, error) as the return value. Leaving in for now in case I want to come back and change later. 
+	return encodedToken, nil
 }
