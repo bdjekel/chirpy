@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -83,7 +84,7 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 		Token string `json:"token"`
 	}
 
-	// ValidateJWT
+	// Validate Refresh Token
 	refresh_token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error retreiving refresh_token.", err)
@@ -109,5 +110,41 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	respondWithJSON(w, http.StatusOK, RefreshResponse{ Token: access_token })
+
+}
+
+func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, r *http.Request) {
+
+	// Validate Refresh Token
+	refresh_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error retreiving refresh_token.", err)
+		return
+	}
+
+	refresh_token_data, err := cfg.DB.GetRefreshToken(r.Context(), refresh_token)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Refresh token does not exist.", err)
+		return
+	}
+
+	refresh_token_data.UpdatedAt = time.Now()
+
+	refresh_token_data.RevokedAt = 	sql.NullTime{
+		Time: time.Now(),
+		Valid: true,
+	}
+
+	err = cfg.DB.UpdateRefreshToken(r.Context(), database.UpdateRefreshTokenParams{
+		Token: refresh_token_data.Token,
+		UpdatedAt: time.Now(),
+		RevokedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Refresh token not updated.", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusNoContent, nil)
 
 }

@@ -28,6 +28,10 @@ func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 
+	if code == http.StatusNoContent {
+		w.WriteHeader(code)
+		return
+	}
 	// Encode response
 	res, err := json.Marshal(payload)
 	if err != nil {

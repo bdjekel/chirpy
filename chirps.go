@@ -43,7 +43,7 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := auth.ValidateJWT(access_token, os.Getenv("SECRET"))
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Error validating access_token.", err)
+		respondWithError(w, http.StatusUnauthorized, "Error validating access_token.", err)
 		return
 	}
 
