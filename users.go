@@ -23,6 +23,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		CreatedAt 	time.Time	`json:"created_at"`
 		UpdatedAt 	time.Time	`json:"updated_at"`
 		Email     	string 		`json:"email"`
+		IsChirpyRed bool		`json:"is_chirpy_red"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -52,10 +53,11 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 
 
 	respondWithJSON(w, 201, UserCreatedResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:        		user.ID,
+		CreatedAt: 		user.CreatedAt,
+		UpdatedAt: 		user.UpdatedAt,
+		Email:     		user.Email,
+		IsChirpyRed: 	user.IsChirpyRed,
 	})
 }
 
@@ -70,6 +72,7 @@ func (cfg *apiConfig) handlerUpdateCredentials (w http.ResponseWriter, r *http.R
 		CreatedAt 	time.Time	`json:"created_at"`
 		UpdatedAt 	time.Time	`json:"updated_at"`
 		Email   	string 		`json:"email"`
+		IsChirpyRed bool		`json:"is_chirpy_red"`
 	}
 
 	// Validate JWT Access Token
@@ -114,9 +117,41 @@ func (cfg *apiConfig) handlerUpdateCredentials (w http.ResponseWriter, r *http.R
 
 	// Encode Response Payload
 	respondWithJSON(w, 200, UserUpdatedResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:        		user.ID,
+		CreatedAt: 		user.CreatedAt,
+		UpdatedAt: 		user.UpdatedAt,
+		Email:     		user.Email,
+		IsChirpyRed: 	user.IsChirpyRed,
 	})
+}
+
+func (cfg *apiConfig) handlerMembershipUpgrade(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	// Decode request
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	//TODO: this endpoint should definitely have auth...
+
+	if params.Event != "user.upgraded" {
+		respondWithJSON(w, http.StatusNoContent, nil)
+	}
+
+	err = cfg.DB.UpgradeUserMembership(r.Context(), params.Data.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "User Membership Upgrade Failed.", err)
+	}
+
+	respondWithJSON(w, http.StatusNoContent, nil)
 }

@@ -59,6 +59,7 @@ func main() {
 	mux.Handle("/app/", fileServerWithHitTracker)
 
 	// api endpoints
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	mux.HandleFunc("GET /api/chirps/{id}", apiCfg.handlerGetChirpByID)
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
@@ -69,6 +70,9 @@ func main() {
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateCredentials)
 	
+	// api webhook endpoints
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerMembershipUpgrade)
+
 	// Admin endpoints
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)

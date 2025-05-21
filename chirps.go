@@ -97,6 +97,46 @@ func (cfg *apiConfig) handlerGetChirpByID(w http.ResponseWriter, r *http.Request
 	respondWithJSON(w, http.StatusOK, chirp)
 }
 
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+    if err != nil {
+        http.Error(w, "Invalid chirp ID", http.StatusForbidden)
+        return
+    }
+
+	// Validate JWT Access Token
+	access_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error retreiving access_token.", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(access_token, os.Getenv("SECRET"))
+	if err != nil {
+		respondWithError(w, http.StatusForbidden, "Error validating access_token.", err)
+		return
+	}
+
+	// Find Chirp in Database
+	chirp_data, err := cfg.DB.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Error retrieving chirp.", err)
+		return
+	}
+
+	if chirp_data.UserID != userID {
+		respondWithError(w, http.StatusForbidden, "Unauthorized DELETE Request.", err)
+		return
+	}
+
+	if err := cfg.DB.DeleteChirp(r.Context(), chirpID); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error creating user", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusNoContent, nil)
+}
+
 func profaneWordHandler(body string) string {
 	// use map so that lookup is O(1)
 	profanities := map[string]struct{}{	
