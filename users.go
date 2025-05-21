@@ -133,10 +133,22 @@ func (cfg *apiConfig) handlerMembershipUpgrade(w http.ResponseWriter, r *http.Re
 		} `json:"data"`
 	}
 
+	// Validate API Key
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Error retreiving apiKey.", err)
+		return
+	}
+
+	if apiKey != os.Getenv("POLKA_KEY") {
+		respondWithJSON(w, http.StatusUnauthorized, "Invalid ApiKey")
+		return
+	}
+
 	// Decode request
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
