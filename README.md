@@ -1,5 +1,4 @@
 # chirpy
-Documentation in progress.
 
 ## Project Overview
 
